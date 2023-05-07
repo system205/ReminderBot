@@ -9,8 +9,9 @@ public class Task {
     private String title;
     private String description;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("H:mm d MMM yyyy", Locale.US);
-    private long chatId;
-    private int messageId;
+    private Long chatId;
+    private Integer messageId;
+    private TimerTask timerTask; // task representation for the timer
 
     public Task(LocalDateTime dateTime, String title) {
         this.dateTime = dateTime;
@@ -30,6 +31,10 @@ public class Task {
             throw new IllegalStateException("The task is supposed to be finished. Its date and time is in the past.");
 
         return Duration.between(currentTime, dateTime).toMillis();
+    }
+
+    public boolean canSchedule() {
+        return LocalDateTime.now().isBefore(dateTime);
     }
 
     @Override
@@ -69,11 +74,17 @@ public class Task {
         this.chatId = chatId;
     }
 
-    public long getChatId() {
+    public Long getChatId() {
         return chatId;
     }
 
-    public int getMessageId() {
+    public Integer getMessageId() {
         return messageId;
     }
+
+    public void setTimerTask(TimerTask timerTask) {
+        this.timerTask = timerTask;
+    }
+
+
 }

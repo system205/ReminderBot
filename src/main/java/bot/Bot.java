@@ -15,8 +15,9 @@ import java.util.*;
 
 public class Bot extends TelegramLongPollingBot {
     private final TaskManager taskManager = new TaskManager();
-    private final Timer timer = new Timer();
     private String username;
+
+    private final Timer timer = new Timer();
 
     public Bot(String botToken) {
         super(botToken);
@@ -29,9 +30,17 @@ public class Bot extends TelegramLongPollingBot {
             String messageText = message.getText();
             Long chatId = message.getChatId();
 
+            // Delete received message
+            deleteMessage(chatId, message.getMessageId());
+
             if (messageText.equals("/start")) {
                 Task task = taskManager.createTask(chatId);
                 if (task == null) return;
+
+                // Delete previous message with editable task if exists
+                if (task.getMessageId() != null) {
+                    deleteMessage(chatId, task.getMessageId());
+                }
 
                 // Send new message with the task
                 SendMessage newTaskMessage = createNewTaskMessage(chatId, task);
@@ -42,19 +51,31 @@ public class Bot extends TelegramLongPollingBot {
                     task.setMessageId(taskMessage.getMessageId());
             }
 
-            if (message.isReply()) {
+
+            if (message.isReply()) { // Reply to change editable task message
                 Message repliedMessage = message.getReplyToMessage();
-                Task currentTask = taskManager.getTaskInProgress(chatId);
-                if (repliedMessage.getText().contains("title")) { // Change title
+                // Delete prompt message which was replied
+                deleteMessage(chatId, repliedMessage.getMessageId());
+
+                // Get currently editable task of the chat
+                Task currentTask = taskManager.getEditableTask(chatId);
+                if (currentTask == null) {
+                    System.out.println("There isn't editable task. Try /start"); // TODO
+                    return;
+                }
+
+                // Change the task content
+                if (repliedMessage.getText().contains("title")) {
                     currentTask.setTitle(messageText);
                 } else if (repliedMessage.getText().contains("description")) {
                     currentTask.setDescription(messageText);
                 }
-                deleteMessage(chatId, repliedMessage.getMessageId());
+
+                // Edit message with task creation
                 updateTaskMessage(chatId, currentTask);
             }
 
-            deleteMessage(chatId, message.getMessageId());
+
         } else if (update.hasCallbackQuery()) { // The button on the task
             System.out.println(update.getCallbackQuery().getMessage().getMessageId() + " " + update.getCallbackQuery().getData());
 
@@ -71,7 +92,7 @@ public class Bot extends TelegramLongPollingBot {
                     newMessage.setReplyMarkup(new ForceReplyKeyboard());
                     sendMessage(newMessage);
                 }
-                case "description" -> { // Change title
+                case "description" -> { // Change description
                     SendMessage newMessage = new SendMessage();
                     newMessage.setParseMode("Markdown");
                     newMessage.setChatId(chatId);
@@ -80,24 +101,55 @@ public class Bot extends TelegramLongPollingBot {
                     sendMessage(newMessage);
                 }
                 case "ok" -> {
-                    Task task = taskManager.getTaskInProgress(chatId);
-                    scheduleTask(String.valueOf(chatId), task);
+                    // Check that task is assigned to the message where clicked
+                    Task task = taskManager.getEditableTask(chatId);
+                    if (task == null || !task.getMessageId().equals(callbackQuery.getMessage().getMessageId())) {
+                        // There is an extra message (zombie). Happens after program reloading
+                        // Tell a user about it and delete this occasion.
+                        Message newMessage = sendMessage(chatId, "Sorry. This message was obsolete. Use /start 😅");
+                        timer.schedule(new TimerTask() {
+                            @Override
+                            public void run() {
+                                deleteMessage(chatId, newMessage.getMessageId());
+                            }
+                        }, 3000);
+                        deleteMessage(chatId, callbackQuery.getMessage().getMessageId());
+                        return;
+                    }
+
+                    // Try to schedule task. Wrong date might cause a failure
+                    boolean scheduled = taskManager.scheduleTask(chatId, this);
+                    if (!scheduled) {
+                        sendMessage(chatId, "Sorry, check the date and time. Or cancel and /start");
+                        return;
+                    }
+
+                    // Acknowledge scheduling to the user
+                    Message newMessage = sendMessage(chatId, "Your task is scheduled!");
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            deleteMessage(chatId, newMessage.getMessageId());
+                        }
+                    }, 5000);
+
+                    // Delete editable message with the scheduled task
+                    deleteMessage(chatId, callbackQuery.getMessage().getMessageId());
+                }
+                case "cancel" -> {
+                    taskManager.cancelTask(chatId);
+                    deleteMessage(chatId, callbackQuery.getMessage().getMessageId());
                 }
             }
         }
     }
 
     private void updateTaskMessage(Long chatId, Task task) {
-        String text = """
-                _New Task_
-                                
-                Title: *%s*
-                Description: %s
-                Date: `%s`""".formatted(task.getTitle(), task.getDescription(), task.getDateTime());
+        String text = getFormattedNewTaskText(task);
 
         EditMessageText editMessage = new EditMessageText();
         editMessage.setChatId(chatId);
-        editMessage.setMessageId(taskManager.getTaskInProgress(chatId).getMessageId());
+        editMessage.setMessageId(taskManager.getEditableTask(chatId).getMessageId());
         editMessage.setParseMode("Markdown");
         editMessage.setText(text);
 
@@ -112,13 +164,19 @@ public class Bot extends TelegramLongPollingBot {
         }
     }
 
-    private SendMessage createNewTaskMessage(Long chatId, Task task) {
-        String text = """
-                _New Task_
+    private static String getFormattedNewTaskText(Task task) {
+        return """
+                *New task.* _Press buttons to edit_ ☺
                                 
-                Title: *%s*
-                Description: %s
-                Date: `%s`""".formatted(task.getTitle(), task.getDescription(), task.getDateTime());
+                _Title:_ *%s*
+                                
+                _Description:_ %s
+                                
+                _Date:_ `%s`""".formatted(task.getTitle(), task.getDescription(), task.getDateTime());
+    }
+
+    private SendMessage createNewTaskMessage(Long chatId, Task task) {
+        String text = getFormattedNewTaskText(task);
         SendMessage message = new SendMessage();
         message.setText(text);
         message.setChatId(chatId);
@@ -171,43 +229,20 @@ public class Bot extends TelegramLongPollingBot {
     }
 
 
-    private void scheduleTask(String chatId, Task task) {
-        // Acknowledge task
-        SendMessage acknowledgement = new SendMessage(chatId, "_I will send you:_```\n" + task + " ```");
-        acknowledgement.setParseMode("Markdown");
-        sendMessage(acknowledgement);
-
-        // Schedule task
-        SendMessage taskMessage = new SendMessage(chatId, task.toString());
-        setTimer(() -> sendMessage(taskMessage), task.getMillisBeforeStart());
+    public Message sendMessage(SendMessage message) {
+        try {
+            return execute(message);
+        } catch (TelegramApiException e) {
+            System.out.println("An error occurred while sending a message. " + e);
+            e.printStackTrace();
+        }
+        return null;
     }
 
-    /**
-     * Delay must be in milliseconds
-     */
-    private void setTimer(Runnable task, long delay) {
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                task.run();
-            }
-        }, delay);
-    }
-
-    /**
-     * Delay must be in milliseconds
-     * RepeatTime - amount of time between the task scheduling
-     */
-    private void setTimer(Runnable task, long delay, long repeatTime) {
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                task.run();
-            }
-        }, delay, repeatTime);
-    }
-
-    private Message sendMessage(SendMessage message) {
+    public Message sendMessage(Long chatId, String text) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId);
+        message.setText(text);
         try {
             return execute(message);
         } catch (TelegramApiException e) {
