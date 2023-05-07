@@ -13,15 +13,22 @@ class Main {
         try {
             // Instantiate Telegram Bots API
             TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
+
+            // Init bot
+            Bot bot = new Bot(getPropertyFromConfig("bot.token"));
+            bot.setUsername(getPropertyFromConfig("bot.username"));
+
             // Register the bot
-            botsApi.registerBot(new Bot(getBotToken()));
+            botsApi.registerBot(bot);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
     }
 
-    private static String getBotToken()  {
+    private static String getPropertyFromConfig(String propertyName)  {
         Properties props = new Properties();
+
+        // Load properties from the config.properties
         try (FileInputStream in = new FileInputStream("src/main/resources/config.properties")){
             props.load(in);
         } catch (IOException e) {
@@ -29,9 +36,7 @@ class Main {
             e.printStackTrace();
         }
 
-        String token = props.getProperty("bot.token");
-//        System.out.println(token);
-
-        return token;
+        return props.getProperty(propertyName);
     }
+
 }

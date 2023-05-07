@@ -1,15 +1,23 @@
 package model;
 
 import java.time.*;
+import java.time.format.*;
 
 public class Task {
     private LocalDateTime dateTime;
     private String title;
     private String description;
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm dd.MM.yyyy");
 
     public Task(LocalDateTime dateTime, String title) {
         this.dateTime = dateTime;
         this.title = title;
+    }
+
+    public Task(LocalDateTime dateTime, String title, String description) {
+        this.dateTime = dateTime;
+        this.title = title;
+        this.description = description;
     }
 
     public Long getMillisBeforeStart(){
@@ -23,11 +31,11 @@ public class Task {
 
     @Override
     public String toString() {
-        return title + " " + (description == null ? "" : description) + ". Start time: " + dateTime.toString();
+        return title + "\n" + (description == null ? "" : description + "\n") + dateTime.format(formatter);
     }
 
-    public LocalDateTime getDateTime() {
-        return dateTime;
+    public String getDateTime() {
+        return dateTime.format(formatter);
     }
 
     public void setDateTime(LocalDateTime dateTime) {

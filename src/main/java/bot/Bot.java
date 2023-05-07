@@ -12,6 +12,8 @@ import java.util.*;
 
 public class Bot extends TelegramLongPollingBot {
     private final Timer timer = new Timer();
+    private String username;
+
     public Bot(String botToken) {
         super(botToken);
     }
@@ -25,21 +27,24 @@ public class Bot extends TelegramLongPollingBot {
 
             Task task = MessageParser.extractTask(messageText);
 
-            // Schedule task
-            SendMessage taskMessage = new SendMessage(chatId, task.toString());
-            setTimer(() -> sendMessage(taskMessage), task.getMillisBeforeStart());
+            if (task != null) {
 
-            // Acknowledge task
-            SendMessage acknowledgement = new SendMessage(chatId, "I will send you: " + task);
-            sendMessage(acknowledgement);
+                // Acknowledge task
+                SendMessage acknowledgement = new SendMessage(chatId, "_I will send you:_```\n" + task + " ```");
+                acknowledgement.setParseMode("Markdown");
+                sendMessage(acknowledgement);
 
+                // Schedule task
+                SendMessage taskMessage = new SendMessage(chatId, task.toString());
+                setTimer(() -> sendMessage(taskMessage), task.getMillisBeforeStart());
+            }
         }
     }
 
     /**
      * Delay must be in milliseconds
-     * */
-    private void setTimer(Runnable task, long delay){
+     */
+    private void setTimer(Runnable task, long delay) {
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
@@ -51,8 +56,8 @@ public class Bot extends TelegramLongPollingBot {
     /**
      * Delay must be in milliseconds
      * RepeatTime - amount of time between the task scheduling
-     * */
-    private void setTimer(Runnable task, long delay, long repeatTime){
+     */
+    private void setTimer(Runnable task, long delay, long repeatTime) {
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
@@ -61,7 +66,7 @@ public class Bot extends TelegramLongPollingBot {
         }, delay, repeatTime);
     }
 
-    private void sendMessage(SendMessage message){
+    private void sendMessage(SendMessage message) {
         try {
             execute(message);
         } catch (TelegramApiException e) {
@@ -72,8 +77,11 @@ public class Bot extends TelegramLongPollingBot {
 
     @Override
     public String getBotUsername() {
-        return "TestBot";
+        return username;
     }
 
+    public void setUsername(String username) {
+        this.username = username;
+    }
 }
 
