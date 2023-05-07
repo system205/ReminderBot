@@ -9,6 +9,7 @@ import java.io.*;
 import java.util.*;
 
 class Main {
+
     public static void main(String[] args) {
         try {
             // Instantiate Telegram Bots API
@@ -25,11 +26,11 @@ class Main {
         }
     }
 
-    private static String getPropertyFromConfig(String propertyName)  {
+    private static String getPropertyFromConfig(String propertyName) {
         Properties props = new Properties();
 
         // Load properties from the config.properties
-        try (FileInputStream in = new FileInputStream("src/main/resources/config.properties")){
+        try (FileInputStream in = new FileInputStream("src/main/resources/config.properties")) {
             props.load(in);
         } catch (IOException e) {
             System.err.println("Unable to read config.properties file. " + e);

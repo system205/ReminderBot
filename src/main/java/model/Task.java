@@ -2,12 +2,15 @@ package model;
 
 import java.time.*;
 import java.time.format.*;
+import java.util.*;
 
 public class Task {
     private LocalDateTime dateTime;
     private String title;
     private String description;
-    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm dd.MM.yyyy");
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("H:mm d MMM yyyy", Locale.US);
+    private long chatId;
+    private int messageId;
 
     public Task(LocalDateTime dateTime, String title) {
         this.dateTime = dateTime;
@@ -20,7 +23,7 @@ public class Task {
         this.description = description;
     }
 
-    public Long getMillisBeforeStart(){
+    public Long getMillisBeforeStart() {
         LocalDateTime currentTime = LocalDateTime.now();
 
         if (currentTime.isAfter(dateTime))
@@ -51,10 +54,26 @@ public class Task {
     }
 
     public String getDescription() {
-        return description;
+        return description == null ? "" : description;
     }
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public void setMessageId(int messageId) {
+        this.messageId = messageId;
+    }
+
+    public void setChatId(long chatId) {
+        this.chatId = chatId;
+    }
+
+    public long getChatId() {
+        return chatId;
+    }
+
+    public int getMessageId() {
+        return messageId;
     }
 }
