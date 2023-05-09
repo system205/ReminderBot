@@ -49,6 +49,24 @@ public class Bot extends TelegramLongPollingBot {
                 if (taskMessage != null) // Message successfully sent
                     // Bind messageId for further editing
                     task.setMessageId(taskMessage.getMessageId());
+            } else if (messageText.equals("/show")) {
+                List<Task> tasks = taskManager.getScheduledTasks(chatId);
+                String tasksMessageText = prepareMessageText(tasks);
+
+                // Send message with the tasks
+                Message newMessage;
+                if (tasksMessageText == null)
+                    newMessage = sendMessage(chatId, "Sorry. It seems that you do not have tasks. Try /start");
+                else
+                    newMessage = sendMessage(chatId, "*Here are your tasks:*\n\n" + tasksMessageText + "New: /start", "Markdown");
+
+                // Remove tasks message in 30 seconds (should be long enough)
+                timer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        deleteMessage(chatId, newMessage.getMessageId());
+                    }
+                }, 30000);
             }
 
 
@@ -125,7 +143,7 @@ public class Bot extends TelegramLongPollingBot {
                     }
 
                     // Acknowledge scheduling to the user
-                    Message newMessage = sendMessage(chatId, "Your task is scheduled!");
+                    Message newMessage = sendMessage(chatId, "✅ Scheduled ✅ \n\n/show 👀");
                     timer.schedule(new TimerTask() {
                         @Override
                         public void run() {
@@ -142,6 +160,17 @@ public class Bot extends TelegramLongPollingBot {
                 }
             }
         }
+    }
+
+    private String prepareMessageText(List<Task> tasks) {
+        if (tasks == null || tasks.size() == 0) return null;
+        StringBuilder string = new StringBuilder();
+
+        for (Task task : tasks) {
+            string.append("```\n").append(task).append("```").append("\n\n");
+        }
+
+        return string.toString();
     }
 
     private void updateTaskMessage(Long chatId, Task task) {
@@ -243,6 +272,20 @@ public class Bot extends TelegramLongPollingBot {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(text);
+        try {
+            return execute(message);
+        } catch (TelegramApiException e) {
+            System.out.println("An error occurred while sending a message. " + e);
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public Message sendMessage(Long chatId, String text, String mode) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId);
+        message.setText(text);
+        message.setParseMode(mode);
         try {
             return execute(message);
         } catch (TelegramApiException e) {
