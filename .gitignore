@@ -13,6 +13,7 @@ config.properties
 *.iws
 *.iml
 *.ipr
+sonarlint
 
 ### Eclipse ###
 .apt_generated
